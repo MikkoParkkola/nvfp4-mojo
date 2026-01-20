@@ -11,12 +11,12 @@
 from memory import UnsafePointer
 
 # NVFP4 constants
-alias NVFP4_GROUP_SIZE: Int = 16
-alias NVFP4_PACK_FACTOR: Int = 2  # 2 FP4 values per byte
+comptime NVFP4_GROUP_SIZE: Int = 16
+comptime NVFP4_PACK_FACTOR: Int = 2  # 2 FP4 values per byte
 
 # FP4 E2M1 lookup table for dequantization
 # Maps 4-bit values (0-15) to their floating point representations
-alias FP4_E2M1_LUT = SIMD[DType.float32, 16](
+comptime FP4_E2M1_LUT = SIMD[DType.float32, 16](
     0.0,    # 0000: +0
     0.5,    # 0001: +0.5
     1.0,    # 0010: +1.0
