@@ -1,0 +1,9 @@
+[project]
+name = "nvfp4-mojo"
+version = "0.1.0"
+description = "NVFP4 quantization kernels for MAX inference engine"
+authors = ["Mikko"]
+channels = ["conda-forge", "https://conda.modular.com/max-nightly"]
+
+[dependencies]
+max = ">=25.1"
