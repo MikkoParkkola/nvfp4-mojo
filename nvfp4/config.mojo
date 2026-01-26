@@ -8,14 +8,13 @@
 #   - Packed as 2 FP4 values per uint8 byte
 # ===----------------------------------------------------------------------=== #
 
-from memory import UnsafePointer
 
-# NVFP4 constants
+# NVFP4 constants.
 comptime NVFP4_GROUP_SIZE: Int = 16
-comptime NVFP4_PACK_FACTOR: Int = 2  # 2 FP4 values per byte
+comptime NVFP4_PACK_FACTOR: Int = 2  # 2 FP4 values per byte.
 
-# FP4 E2M1 lookup table for dequantization
-# Maps 4-bit values (0-15) to their floating point representations
+# FP4 E2M1 lookup table for dequantization.
+# Maps 4-bit values (0-15) to their floating point representations.
 comptime FP4_E2M1_LUT = SIMD[DType.float32, 16](
     0.0,    # 0000: +0
     0.5,    # 0001: +0.5
@@ -63,25 +62,45 @@ struct NvFp4Config(Copyable, Movable):
 
 
 struct NvFp4Linear(Copyable, Movable):
-    """NVFP4 quantized linear layer weights."""
+    """NVFP4 quantized linear layer metadata.
+
+    Note: Actual weight pointers are passed to forward functions
+    separately to avoid complex lifetime tracking in Mojo 0.26.
+    """
     var in_features: Int
     var out_features: Int
     var input_scale: Float32
+    var weight_scale_2: Float32  # Second-level scale from calibration.
 
     fn __init__(out self, in_features: Int, out_features: Int):
         self.in_features = in_features
         self.out_features = out_features
         self.input_scale = 1.0
+        self.weight_scale_2 = 1.0
 
     fn __copyinit__(out self, other: Self):
         self.in_features = other.in_features
         self.out_features = other.out_features
         self.input_scale = other.input_scale
+        self.weight_scale_2 = other.weight_scale_2
 
     fn __moveinit__(out self, deinit other: Self):
         self.in_features = other.in_features
         self.out_features = other.out_features
         self.input_scale = other.input_scale
+        self.weight_scale_2 = other.weight_scale_2
+
+    fn alpha(self) -> Float32:
+        """Compute combined scaling factor."""
+        return self.input_scale * self.weight_scale_2
+
+    fn packed_weight_size(self) -> Int:
+        """Size of packed weight buffer in bytes."""
+        return self.out_features * (self.in_features // NVFP4_PACK_FACTOR)
+
+    fn scale_size(self) -> Int:
+        """Size of blockscale buffer in elements."""
+        return self.out_features * (self.in_features // NVFP4_GROUP_SIZE)
 
 
 @always_inline
