@@ -338,3 +338,39 @@ Qwen 3.5 (397B/17B active MoE) validated as target model architecture for botnau
 - MXFP4 (OCP MX FP4) ≈ NVFP4 (E2M1) — same format, different branding
 - Vision encoder separable — can add multimodal later
 - Risk: Low (formats well-documented, GGUF widely adopted)
+
+---
+
+## Issue 14: Evaluate COMPOT orthogonal compression for NVFP4 pipeline
+
+**Labels**: research, enhancement
+**Priority**: P2 (potential quality improvement)
+
+### Source
+[COMPOT: Calibration-Optimized Matrix Procrustes Orthogonalization for Transformers Compression](https://arxiv.org/abs/2602.15200) — Makhov et al., Feb 2026
+
+### Summary
+COMPOT introduces training-free transformer compression using sparse dictionary learning with orthogonal dictionaries. Key properties:
+- **Closed-form solutions** — no iterative optimization (fast, deterministic)
+- **Adaptive per-layer compression** — redistributes compression budget based on layer sensitivity
+- **Compatible with post-training quantization** — can layer on top of FP4/FP8 quantization
+- Uses small calibration dataset (not full retraining)
+
+### Relevance to NVFP4
+Our current pipeline: FP16/BF16 → FP4 E2M1 quantization (blockscale FP8 E4M3, group_size=16). COMPOT could:
+1. **Pre-compress** weights via orthogonal projection BEFORE FP4 quantization → better quality at same bit-width
+2. **Adaptive layer budgets** — some layers tolerate more aggressive quantization than others. COMPOT's per-layer redistribution could inform which layers get FP4 vs FP8
+3. **Complement NVFP4** — not a replacement, but an additional compression stage in the pipeline
+
+### Acceptance Criteria
+- [ ] Read full paper and extract algorithm details
+- [ ] Evaluate: does orthogonal pre-compression improve FP4 quantization quality?
+- [ ] Compare: COMPOT+FP4 vs plain FP4 on perplexity benchmarks
+- [ ] If promising: implement orthogonal projection in Mojo as preprocessing step
+- [ ] Assess computational cost of calibration step
+
+### Evidence
+- Paper claims improved performance vs existing low-rank and sparse alternatives
+- Compatible with PTQ (post-training quantization) — our use case exactly
+- Risk: Low (research evaluation, no code changes until validated)
+- Timeline: 2-4 hour paper analysis + optional 1-day prototype
