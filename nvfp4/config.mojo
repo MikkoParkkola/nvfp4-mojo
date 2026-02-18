@@ -48,17 +48,17 @@ struct NvFp4Config(Copyable, Movable):
         self.scale_dtype = DType.float8_e4m3fn
         self.output_dtype = DType.bfloat16
 
-    fn __copyinit__(out self, other: Self):
-        self.group_size = other.group_size
-        self.weight_dtype = other.weight_dtype
-        self.scale_dtype = other.scale_dtype
-        self.output_dtype = other.output_dtype
+    fn __copyinit__(out self, copy: Self):
+        self.group_size = copy.group_size
+        self.weight_dtype = copy.weight_dtype
+        self.scale_dtype = copy.scale_dtype
+        self.output_dtype = copy.output_dtype
 
-    fn __moveinit__(out self, deinit other: Self):
-        self.group_size = other.group_size
-        self.weight_dtype = other.weight_dtype
-        self.scale_dtype = other.scale_dtype
-        self.output_dtype = other.output_dtype
+    fn __moveinit__(out self, deinit take: Self):
+        self.group_size = take.group_size
+        self.weight_dtype = take.weight_dtype
+        self.scale_dtype = take.scale_dtype
+        self.output_dtype = take.output_dtype
 
 
 struct NvFp4Linear(Copyable, Movable):
@@ -78,17 +78,17 @@ struct NvFp4Linear(Copyable, Movable):
         self.input_scale = 1.0
         self.weight_scale_2 = 1.0
 
-    fn __copyinit__(out self, other: Self):
-        self.in_features = other.in_features
-        self.out_features = other.out_features
-        self.input_scale = other.input_scale
-        self.weight_scale_2 = other.weight_scale_2
+    fn __copyinit__(out self, copy: Self):
+        self.in_features = copy.in_features
+        self.out_features = copy.out_features
+        self.input_scale = copy.input_scale
+        self.weight_scale_2 = copy.weight_scale_2
 
-    fn __moveinit__(out self, deinit other: Self):
-        self.in_features = other.in_features
-        self.out_features = other.out_features
-        self.input_scale = other.input_scale
-        self.weight_scale_2 = other.weight_scale_2
+    fn __moveinit__(out self, deinit take: Self):
+        self.in_features = take.in_features
+        self.out_features = take.out_features
+        self.input_scale = take.input_scale
+        self.weight_scale_2 = take.weight_scale_2
 
     fn alpha(self) -> Float32:
         """Compute combined scaling factor."""
