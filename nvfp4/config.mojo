@@ -65,7 +65,7 @@ struct NvFp4Linear(Copyable, Movable):
     """NVFP4 quantized linear layer metadata.
 
     Note: Actual weight pointers are passed to forward functions
-    separately to avoid complex lifetime tracking in Mojo 0.26.
+    separately to avoid complex lifetime tracking.
     """
     var in_features: Int
     var out_features: Int
@@ -129,8 +129,7 @@ fn dequant_fp4_simd[width: Int](
     """Vectorized FP4 dequantization."""
     var result = SIMD[DType.float32, width]()
 
-    @parameter
-    for i in range(width):
+    comptime for i in range(width):
         result[i] = dequant_fp4(fp4_vals[i], scales[i])
 
     return result

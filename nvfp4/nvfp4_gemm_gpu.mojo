@@ -18,11 +18,7 @@ from gpu import (
     thread_idx,
 )
 from gpu.host import DeviceContext, DeviceBuffer
-from memory import LegacyUnsafePointer
-
-# Use LegacyUnsafePointer with mut=True for mutable pointer operations.
-# This is the Mojo 0.26.1 pattern for pointers that need write access.
-comptime UnsafePointer = LegacyUnsafePointer[mut=True, ...]
+from memory import UnsafePointer
 
 from .config import (
     NVFP4_GROUP_SIZE,
@@ -76,12 +72,10 @@ fn load_and_dequant_fp4_tile[
     # Each thread handles one row element.
     var packed_col = start_col // NVFP4_PACK_FACTOR
 
-    @parameter
-    for m in range(tile_m):
+    comptime for m in range(tile_m):
         var row = start_row + m
 
-        @parameter
-        for k in range(tile_k // NVFP4_PACK_FACTOR):
+        comptime for k in range(tile_k // NVFP4_PACK_FACTOR):
             var col = packed_col + k
             var packed = packed_weights[row * weight_stride + col]
 

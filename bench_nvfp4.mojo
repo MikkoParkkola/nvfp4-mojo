@@ -114,7 +114,7 @@ fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
 
 fn main():
     print("=" * 60)
-    print("NVFP4 Dequantization Benchmark (Mojo 0.26.1)")
+    print("NVFP4 Dequantization Benchmark (Mojo 26.2)")
     print("=" * 60)
     print()
 
