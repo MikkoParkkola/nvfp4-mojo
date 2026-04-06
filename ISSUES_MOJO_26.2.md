@@ -57,11 +57,11 @@ standard GPU primitives. Monitor upstream for when TileTensor becomes public.
 
 ## Issue 3: Add AMD CDNA GPU support and cross-vendor data center testing
 
-**Labels**: enhancement, mojo-upgrade, moat
-**Priority**: P1 (competitive moat)
+**Labels**: enhancement, mojo-upgrade
+**Priority**: P1 (cross-vendor validation)
 
 ### Summary
-Mojo 26.2 supports AMD CDNA (MI300X/MI355X) as Tier 1 target alongside NVIDIA. NVFP4 kernels running on NVIDIA + AMD CDNA = unique cross-vendor data center positioning.
+Mojo 26.2 supports AMD CDNA (MI300X/MI355X) as Tier 1 target alongside NVIDIA. NVFP4 kernels should be validated across both data-center GPU vendors.
 
 ### Spike Validation (2026-02-19)
 - **NVIDIA CUDA**: ✅ PASS (Tier 1, production-ready)
@@ -84,7 +84,7 @@ Mojo 26.2 supports AMD CDNA (MI300X/MI355X) as Tier 1 target alongside NVIDIA. N
 - Spike: AMD CDNA is Tier 1 (same as NVIDIA), RDNA/Apple are Tier 3
 - OCP MX standard includes FP4 E2M1 — hardware-agnostic format
 - Risk: Low-Medium (CDNA is well-supported, kernel adjustments needed)
-- Moat: Most NVFP4 implementations are NVIDIA-only; we target both data center vendors
+- Coverage: Most NVFP4 implementations are NVIDIA-only; this issue extends validation to both data-center vendors
 
 ---
 
@@ -169,7 +169,7 @@ Mojo 26.2 adds paged KV cache store helpers. Direct relevance to NVFP4 inference
 
 ## Issue 8: Align with Modular's DeepSeek-V3.1-NVFP4 eval pipeline
 
-**Labels**: enhancement, moat
+**Labels**: enhancement
 **Priority**: P1 (validation + alignment)
 
 ### Summary
@@ -241,7 +241,7 @@ NVFP4 remains valuable even with abundant HBM because:
 
 ## Issue 11: Implement DeltaNet inference kernel in Mojo
 
-**Labels**: enhancement, architecture, moat
+**Labels**: enhancement, architecture
 **Priority**: P1 (botnaut core architecture)
 
 ### Summary
@@ -283,7 +283,7 @@ DeltaNet ≈ online gradient descent at layer level (von Oswald 2022)
 
 ## Issue 12: AMD CDNA NVFP4 pilot (1-2 day spike)
 
-**Labels**: enhancement, moat, pilot
+**Labels**: enhancement, pilot
 **Priority**: P1 (cross-vendor validation)
 
 ### Summary
