@@ -16,11 +16,12 @@ nvfp4-mojo/
 ├── nvfp4/                    # Main package
 │   ├── __init__.mojo         # Package exports
 │   ├── config.mojo           # Configuration, constants, dequantization
-│   ├── gemm_gpu.mojo         # GPU GEMM kernel with fused dequantization
-│   ├── moe.mojo              # MoE (Mixture of Experts) support
-│   └── loader.mojo           # Weight loading from safetensors
+│   ├── deltanet.mojo         # DeltaNet support code
+│   ├── nvfp4_gemm_gpu.mojo   # GPU GEMM kernel with fused dequantization
+│   └── weight_loader.mojo    # Weight loading from safetensors
 ├── tests/
-│   └── test_nvfp4.mojo       # Unit tests
+│   ├── test_deltanet.mojo    # DeltaNet-focused tests
+│   └── test_nvfp4.mojo       # Core NVFP4 tests
 ├── run_tests.mojo            # Test runner
 ├── mojoproject.toml          # Project configuration
 └── README.md
