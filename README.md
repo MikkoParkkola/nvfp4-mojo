@@ -30,7 +30,15 @@ nvfp4-mojo/
 ## Running Tests
 
 ```bash
-mojo run run_tests.mojo
+pixi run mojo run run_tests.mojo
+```
+
+The project runner executes both suites and exits non-zero on the first
+assertion failure. To iterate on one suite at a time:
+
+```bash
+pixi run mojo run -I . tests/test_nvfp4.mojo
+pixi run mojo run -I . tests/test_deltanet.mojo
 ```
 
 ## Weight Structure
