@@ -18,9 +18,10 @@ jobs:
       - uses: prefix-dev/setup-pixi@1b2de7f3351f171c8b4dfeb558c639cb58ed4ec0 # v0.9.5
         with:
           pixi-version: v0.65.0
+          manifest-path: mojoproject.toml
 
       - name: Show Mojo version
-        run: pixi run mojo --version
+        run: pixi run --manifest-path mojoproject.toml mojo --version
 
       - name: Run test suite
-        run: pixi run mojo run run_tests.mojo
+        run: pixi run --manifest-path mojoproject.toml mojo run run_tests.mojo
