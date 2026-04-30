@@ -20,9 +20,9 @@
 # Reference: Yang et al. 2024 "Gated Delta Networks"
 # ===----------------------------------------------------------------------=== #
 
-from math import exp, sqrt, log
-from memory import UnsafePointer, memset_zero
-from collections import List
+from std.math import exp, sqrt, log
+from std.memory import UnsafePointer, memset_zero
+from std.collections import List
 
 from .config import (
     NVFP4_GROUP_SIZE,
@@ -53,7 +53,7 @@ comptime DN_RMS_EPS: Float32 = 1e-6
 # ===----------------------------------------------------------------------=== #
 
 @always_inline
-fn softplus(x: Float32) -> Float32:
+def softplus(x: Float32) -> Float32:
     """Compute softplus: log(1 + exp(x))."""
     # Numerically stable: for large x, softplus(x) ~ x.
     if x > 20.0:
@@ -64,7 +64,7 @@ fn softplus(x: Float32) -> Float32:
 
 
 @always_inline
-fn sigmoid(x: Float32) -> Float32:
+def sigmoid(x: Float32) -> Float32:
     """Compute sigmoid: 1 / (1 + exp(-x))."""
     if x >= 0.0:
         var e = exp(-x)
@@ -75,7 +75,7 @@ fn sigmoid(x: Float32) -> Float32:
 
 
 @always_inline
-fn silu(x: Float32) -> Float32:
+def silu(x: Float32) -> Float32:
     """Compute SiLU: x * sigmoid(x)."""
     return x * sigmoid(x)
 
@@ -94,7 +94,7 @@ struct DeltaNetConfig(Copyable, Movable):
     var conv_kernel: Int       # Conv1d kernel size.
     var rms_eps: Float32       # RMS norm epsilon.
 
-    fn __init__(out self):
+    def __init__(out self):
         """Default config matching Qwen3.5-35B-A3B DeltaNet layers."""
         self.d_model = 2048
         self.num_key_heads = DN_NUM_KEY_HEADS
@@ -104,7 +104,7 @@ struct DeltaNetConfig(Copyable, Movable):
         self.conv_kernel = DN_CONV_KERNEL
         self.rms_eps = DN_RMS_EPS
 
-    fn __init__(
+    def __init__(
         out self,
         d_model: Int,
         num_key_heads: Int,
@@ -122,7 +122,7 @@ struct DeltaNetConfig(Copyable, Movable):
         self.conv_kernel = conv_kernel
         self.rms_eps = rms_eps
 
-    fn __copyinit__(out self, copy: Self):
+    def __init__(out self, *, copy: Self):
         self.d_model = copy.d_model
         self.num_key_heads = copy.num_key_heads
         self.num_value_heads = copy.num_value_heads
@@ -131,7 +131,7 @@ struct DeltaNetConfig(Copyable, Movable):
         self.conv_kernel = copy.conv_kernel
         self.rms_eps = copy.rms_eps
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.d_model = take.d_model
         self.num_key_heads = take.num_key_heads
         self.num_value_heads = take.num_value_heads
@@ -140,19 +140,19 @@ struct DeltaNetConfig(Copyable, Movable):
         self.conv_kernel = take.conv_kernel
         self.rms_eps = take.rms_eps
 
-    fn v_groups(self) -> Int:
+    def v_groups(self) -> Int:
         """Value heads per key head group."""
         return self.num_value_heads // self.num_key_heads
 
-    fn state_size_per_head(self) -> Int:
+    def state_size_per_head(self) -> Int:
         """State matrix size per head: key_dim * value_dim."""
         return self.key_dim * self.value_dim
 
-    fn total_state_floats(self) -> Int:
+    def total_state_floats(self) -> Int:
         """Total state floats per layer: num_value_heads * key_dim * value_dim."""
         return self.num_value_heads * self.key_dim * self.value_dim
 
-    fn total_qkv_dim(self) -> Int:
+    def total_qkv_dim(self) -> Int:
         """Total QKV projection output dimension."""
         return (
             self.num_key_heads * self.key_dim
@@ -160,16 +160,16 @@ struct DeltaNetConfig(Copyable, Movable):
             + self.num_value_heads * self.value_dim
         )
 
-    fn q_dim(self) -> Int:
+    def q_dim(self) -> Int:
         return self.num_key_heads * self.key_dim
 
-    fn k_dim(self) -> Int:
+    def k_dim(self) -> Int:
         return self.num_key_heads * self.key_dim
 
-    fn v_dim(self) -> Int:
+    def v_dim(self) -> Int:
         return self.num_value_heads * self.value_dim
 
-    fn z_dim(self) -> Int:
+    def z_dim(self) -> Int:
         """Output gate dimension: num_value_heads * value_dim."""
         return self.num_value_heads * self.value_dim
 
@@ -191,7 +191,7 @@ struct DeltaNetState:
     var conv_buf_v: List[Float32]    # [v_dim, conv_kernel - 1]
     var config: DeltaNetConfig
 
-    fn __init__(out self, config: DeltaNetConfig):
+    def __init__(out self, config: DeltaNetConfig):
         self.config = config.copy()
         var state_size = config.total_state_floats()
         self.s_matrix = List[Float32](capacity=state_size)
@@ -209,7 +209,7 @@ struct DeltaNetState:
         self.conv_buf_v = List[Float32](capacity=v_buf_size)
         self.conv_buf_v.resize(v_buf_size, 0.0)
 
-    fn state_offset(self, head: Int) -> Int:
+    def state_offset(self, head: Int) -> Int:
         """Offset into s_matrix for a specific value head."""
         return head * self.config.key_dim * self.config.value_dim
 
@@ -219,7 +219,7 @@ struct DeltaNetState:
 # ===----------------------------------------------------------------------=== #
 
 @always_inline
-fn matvec_transposed[
+def matvec_transposed[
     o_mat: Origin, o_vec: Origin, o_res: MutOrigin,
 ](
     mat: UnsafePointer[Float32, o_mat],   # [rows, cols] row-major
@@ -237,7 +237,7 @@ fn matvec_transposed[
 
 
 @always_inline
-fn matvec[
+def matvec[
     o_mat: Origin, o_vec: Origin, o_res: MutOrigin,
 ](
     mat: UnsafePointer[Float32, o_mat],   # [rows, cols] row-major
@@ -255,7 +255,7 @@ fn matvec[
 
 
 @always_inline
-fn dot[o1: Origin, o2: Origin](
+def dot[o1: Origin, o2: Origin](
     a: UnsafePointer[Float32, o1],
     b: UnsafePointer[Float32, o2],
     n: Int,
@@ -268,7 +268,7 @@ fn dot[o1: Origin, o2: Origin](
 
 
 @always_inline
-fn rms_norm_inplace[o: MutOrigin](
+def rms_norm_inplace[o: MutOrigin](
     x: UnsafePointer[Float32, o],
     n: Int,
     eps: Float32,
@@ -285,7 +285,7 @@ fn rms_norm_inplace[o: MutOrigin](
 
 
 @always_inline
-fn conv1d_step[
+def conv1d_step[
     o_in: Origin, o_buf: MutOrigin, o_w: Origin, o_b: Origin, o_res: MutOrigin,
 ](
     new_input: UnsafePointer[Float32, o_in],
@@ -332,7 +332,7 @@ fn conv1d_step[
 # DeltaNet Forward (Single Token, Autoregressive)
 # ===----------------------------------------------------------------------=== #
 
-fn deltanet_forward(
+def deltanet_forward(
     mut hidden_buf: List[Float32],     # Input: [d_model]
     mut output_buf: List[Float32],     # Output: [d_model] (written)
     mut w_qkv: List[Float32],         # [qkv_dim, d_model]
@@ -546,7 +546,7 @@ fn deltanet_forward(
 # NVFP4-Fused DeltaNet Matvec
 # ===----------------------------------------------------------------------=== #
 
-fn nvfp4_matvec[
+def nvfp4_matvec[
     o_packed: Origin, o_scales: Origin, o_in: Origin, o_res: MutOrigin,
 ](
     linear: NvFp4Linear,

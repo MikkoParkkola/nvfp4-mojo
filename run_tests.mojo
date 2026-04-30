@@ -4,7 +4,7 @@ from tests.test_deltanet import run_suite as run_deltanet_suite
 from tests.test_nvfp4 import run_suite as run_nvfp4_suite
 
 
-fn main() raises:
+def main() raises:
     print("=" * 60)
     print("NVFP4 Mojo Test Runner")
     print("=" * 60)

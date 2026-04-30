@@ -1,9 +1,9 @@
 # NVFP4 Dequantization Benchmark
 # Measures throughput of FP4 E2M1 dequantization
 
-from time import perf_counter_ns
-from collections import List
-from random import random_ui64
+from std.time import perf_counter_ns
+from std.collections import List
+from std.random import random_ui64
 
 from nvfp4.config import (
     NVFP4_GROUP_SIZE,
@@ -14,7 +14,7 @@ from nvfp4.config import (
 )
 
 
-fn benchmark_scalar_dequant(iterations: Int, num_elements: Int) -> Float64:
+def benchmark_scalar_dequant(iterations: Int, num_elements: Int) -> Float64:
     """Benchmark scalar FP4 dequantization."""
     # Generate random packed FP4 values (each byte = 2 FP4 values)
     var packed_data = List[UInt8](capacity=num_elements // 2)
@@ -22,11 +22,11 @@ fn benchmark_scalar_dequant(iterations: Int, num_elements: Int) -> Float64:
     var output = List[Float32](capacity=num_elements)
 
     # Initialize with random data
-    for i in range(num_elements // 2):
+    for _ in range(num_elements // 2):
         packed_data.append(UInt8(random_ui64(0, 255)))
-    for i in range(num_elements // NVFP4_GROUP_SIZE):
+    for _ in range(num_elements // NVFP4_GROUP_SIZE):
         scales.append(Float32(random_ui64(1, 100)) / 10.0)
-    for i in range(num_elements):
+    for _ in range(num_elements):
         output.append(0.0)
 
     # Warmup
@@ -55,7 +55,7 @@ fn benchmark_scalar_dequant(iterations: Int, num_elements: Int) -> Float64:
     return throughput_gops
 
 
-fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
+def benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
     """Benchmark SIMD FP4 dequantization (16-wide)."""
     # Generate random packed FP4 values
     var packed_data = List[UInt8](capacity=num_elements // 2)
@@ -63,11 +63,11 @@ fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
     var output = List[Float32](capacity=num_elements)
 
     # Initialize with random data
-    for i in range(num_elements // 2):
+    for _ in range(num_elements // 2):
         packed_data.append(UInt8(random_ui64(0, 255)))
-    for i in range(num_elements // NVFP4_GROUP_SIZE):
+    for _ in range(num_elements // NVFP4_GROUP_SIZE):
         scales.append(Float32(random_ui64(1, 100)) / 10.0)
-    for i in range(num_elements):
+    for _ in range(num_elements):
         output.append(0.0)
 
     # Process in groups of 16 (matching NVFP4_GROUP_SIZE)
@@ -85,7 +85,8 @@ fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
                 fp4_vals[i * 2] = packed & 0x0F
                 fp4_vals[i * 2 + 1] = (packed >> 4) & 0x0F
             # Dequantize
-            var result = dequant_fp4_simd(fp4_vals, scale)
+            var scale_vals = SIMD[DType.float32, 16](scale)
+            var result = dequant_fp4_simd(fp4_vals, scale_vals)
             # Store
             for i in range(16):
                 output[base_idx + i] = result[i]
@@ -101,7 +102,8 @@ fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
                 var packed = packed_data[base_idx // 2 + i]
                 fp4_vals[i * 2] = packed & 0x0F
                 fp4_vals[i * 2 + 1] = (packed >> 4) & 0x0F
-            var result = dequant_fp4_simd(fp4_vals, scale)
+            var scale_vals = SIMD[DType.float32, 16](scale)
+            var result = dequant_fp4_simd(fp4_vals, scale_vals)
             for i in range(16):
                 output[base_idx + i] = result[i]
     var end = perf_counter_ns()
@@ -112,9 +114,9 @@ fn benchmark_simd_dequant(iterations: Int, num_elements: Int) -> Float64:
     return throughput_gops
 
 
-fn main():
+def main():
     print("=" * 60)
-    print("NVFP4 Dequantization Benchmark (Mojo 26.2)")
+    print("NVFP4 Dequantization Benchmark")
     print("=" * 60)
     print()
 

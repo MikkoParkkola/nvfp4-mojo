@@ -1,6 +1,6 @@
 # Test DeltaNet inference kernel.
-from math import sqrt
-from collections import List
+from std.math import sqrt
+from std.collections import List
 from std.testing import assert_equal, assert_true
 
 from nvfp4.deltanet import (
@@ -20,14 +20,14 @@ from nvfp4.deltanet import (
 from tests.helpers import expect_close
 
 
-fn make_list(n: Int, val: Float32) -> List[Float32]:
+def make_list(n: Int, val: Float32) -> List[Float32]:
     """Create a List[Float32] of size n filled with val."""
     var buf = List[Float32](capacity=n)
     buf.resize(n, val)
     return buf^
 
 
-fn make_list_seq(
+def make_list_seq(
     n: Int, start: Float32 = 0.0, step: Float32 = 0.01
 ) -> List[Float32]:
     """Create a List[Float32] with sequential values."""
@@ -37,7 +37,7 @@ fn make_list_seq(
     return buf^
 
 
-fn make_identity_like(
+def make_identity_like(
     rows: Int, cols: Int, scale: Float32 = 1.0
 ) -> List[Float32]:
     """Create a matrix where M[i, i % cols] = scale, rest = 0."""
@@ -54,7 +54,7 @@ fn make_identity_like(
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_softplus() raises:
+def test_softplus() raises:
     expect_close(softplus(0.0), 0.6931472, "softplus(0.0)")
     expect_close(softplus(30.0), 30.0, "softplus(30.0)")
     expect_close(softplus(-30.0), 0.0, "softplus(-30.0)")
@@ -62,14 +62,14 @@ fn test_softplus() raises:
     print("  PASS softplus")
 
 
-fn test_sigmoid() raises:
+def test_sigmoid() raises:
     expect_close(sigmoid(0.0), 0.5, "sigmoid(0.0)")
     expect_close(sigmoid(10.0), 0.9999546, "sigmoid(10.0)")
     expect_close(sigmoid(-10.0), 4.539787e-05, "sigmoid(-10.0)")
     print("  PASS sigmoid")
 
 
-fn test_silu() raises:
+def test_silu() raises:
     expect_close(silu(0.0), 0.0, "silu(0.0)")
     expect_close(silu(1.0), 0.7310586, "silu(1.0)")
     expect_close(silu(-1.0), -0.26894143, "silu(-1.0)")
@@ -81,7 +81,7 @@ fn test_silu() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_matvec() raises:
+def test_matvec() raises:
     """Test matrix-vector multiply: y = A @ x."""
     var a_buf = List[Float32](capacity=6)
     a_buf.append(1.0)
@@ -102,7 +102,7 @@ fn test_matvec() raises:
     print("  PASS matvec")
 
 
-fn test_matvec_transposed() raises:
+def test_matvec_transposed() raises:
     """Test transposed matrix-vector: y = A^T @ x."""
     var a_buf = List[Float32](capacity=6)
     a_buf.append(1.0)
@@ -125,7 +125,7 @@ fn test_matvec_transposed() raises:
     print("  PASS matvec_transposed")
 
 
-fn test_dot() raises:
+def test_dot() raises:
     var a_buf = List[Float32](capacity=3)
     a_buf.append(1.0)
     a_buf.append(2.0)
@@ -139,7 +139,7 @@ fn test_dot() raises:
     print("  PASS dot")
 
 
-fn test_rms_norm() raises:
+def test_rms_norm() raises:
     var x_buf = List[Float32](capacity=4)
     x_buf.append(1.0)
     x_buf.append(2.0)
@@ -160,7 +160,7 @@ fn test_rms_norm() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_conv1d_step() raises:
+def test_conv1d_step() raises:
     """Test single-step causal conv1d."""
     var channels = 2
     var kernel_size = 3
@@ -216,7 +216,7 @@ fn test_conv1d_step() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_config() raises:
+def test_config() raises:
     var cfg = DeltaNetConfig()
     assert_equal(
         cfg.d_model, 2048, "DeltaNetConfig d_model changed unexpectedly"
@@ -259,7 +259,7 @@ fn test_config() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_state_init() raises:
+def test_state_init() raises:
     var cfg = DeltaNetConfig()
     var state = DeltaNetState(cfg)
 
@@ -282,7 +282,7 @@ fn test_state_init() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_forward_small() raises:
+def test_forward_small() raises:
     """Test DeltaNet forward with a small configuration."""
     var cfg = DeltaNetConfig(
         d_model=8,
@@ -425,7 +425,7 @@ fn test_forward_small() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_o1_memory() raises:
+def test_o1_memory() raises:
     """Verify that DeltaNet state size is constant regardless of sequence length.
     """
     var cfg = DeltaNetConfig()
@@ -449,7 +449,7 @@ fn test_o1_memory() raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn run_suite() raises:
+def run_suite() raises:
     print("=" * 60)
     print("DeltaNet Inference Kernel Test Suite")
     print("=" * 60)
@@ -472,5 +472,5 @@ fn run_suite() raises:
     print("=" * 60)
 
 
-fn main() raises:
+def main() raises:
     run_suite()

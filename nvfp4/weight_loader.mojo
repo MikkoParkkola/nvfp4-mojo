@@ -15,7 +15,7 @@
 # .unsafe_ptr() when passing to GEMM kernels.
 # ===----------------------------------------------------------------------=== #
 
-from sys import external_call
+from std.ffi import external_call
 
 from .config import (
     NVFP4_GROUP_SIZE,
@@ -34,32 +34,45 @@ comptime _O_RDONLY: Int = 0
 comptime _SEEK_SET: Int = 0
 comptime _SEEK_END: Int = 2
 
+comptime _BYTE_TAB: UInt8 = 9
+comptime _BYTE_NEWLINE: UInt8 = 10
+comptime _BYTE_SPACE: UInt8 = 32
+comptime _BYTE_QUOTE: UInt8 = 34
+comptime _BYTE_COMMA: UInt8 = 44
+comptime _BYTE_COLON: UInt8 = 58
+comptime _BYTE_DIGIT_0: UInt8 = 48
+comptime _BYTE_DIGIT_9: UInt8 = 57
+comptime _BYTE_OPEN_BRACKET: UInt8 = 91
+comptime _BYTE_CLOSE_BRACKET: UInt8 = 93
+comptime _BYTE_OPEN_BRACE: UInt8 = 123
+comptime _BYTE_CLOSE_BRACE: UInt8 = 125
 
-fn _fd_open(path: UnsafePointer[UInt8]) -> Int32:
+
+def _fd_open[o_path: Origin](path: UnsafePointer[UInt8, o_path]) -> Int32:
     """Open file read-only. Returns fd or -1."""
     return external_call["open", Int32](path, Int32(_O_RDONLY))
 
 
-fn _fd_close(fd: Int32):
+def _fd_close(fd: Int32):
     _ = external_call["close", Int32](fd)
 
 
-fn _fd_read(fd: Int32, buf: UnsafePointer[UInt8], count: Int) -> Int:
+def _fd_read[o_buf: MutOrigin](fd: Int32, buf: UnsafePointer[UInt8, o_buf], count: Int) -> Int:
     return Int(external_call["read", Int64](fd, buf, UInt64(count)))
 
 
-fn _fd_lseek(fd: Int32, offset: Int64, whence: Int32) -> Int64:
+def _fd_lseek(fd: Int32, offset: Int64, whence: Int32) -> Int64:
     return external_call["lseek", Int64](fd, offset, whence)
 
 
-fn _fd_file_size(fd: Int32) -> Int:
+def _fd_file_size(fd: Int32) -> Int:
     """Get file size via lseek to end and back."""
     var end = _fd_lseek(fd, 0, Int32(_SEEK_END))
     _ = _fd_lseek(fd, 0, Int32(_SEEK_SET))
     return Int(end)
 
 
-fn _fd_pread(fd: Int32, offset: Int, dst: UnsafePointer[UInt8], count: Int) -> Int:
+def _fd_pread[o_dst: MutOrigin](fd: Int32, offset: Int, dst: UnsafePointer[UInt8, o_dst], count: Int) -> Int:
     """Read count bytes at file offset into dst. Handles partial reads."""
     _ = _fd_lseek(fd, Int64(offset), Int32(_SEEK_SET))
     var total = 0
@@ -71,7 +84,7 @@ fn _fd_pread(fd: Int32, offset: Int, dst: UnsafePointer[UInt8], count: Int) -> I
     return total
 
 
-fn _fd_read_into_list(fd: Int32, offset: Int, count: Int) -> List[UInt8]:
+def _fd_read_into_list(fd: Int32, offset: Int, count: Int) -> List[UInt8]:
     """Read count bytes at file offset into a new List[UInt8]."""
     var buf = List[UInt8](capacity=count)
     for _ in range(count):
@@ -80,24 +93,25 @@ fn _fd_read_into_list(fd: Int32, offset: Int, count: Int) -> List[UInt8]:
     return buf^
 
 
-fn _str_to_cpath(s: String) -> List[UInt8]:
+def _str_to_cpath(s: String) -> List[UInt8]:
     """Convert String to null-terminated byte buffer for C APIs."""
-    var buf = List[UInt8](capacity=len(s) + 1)
+    var n = s.byte_length()
+    var buf = List[UInt8](capacity=n + 1)
     var bytes = s.as_bytes()
-    for i in range(len(s)):
+    for i in range(n):
         buf.append(bytes[i])
     buf.append(0)
     return buf^
 
 
-fn _try_open_file(path: String) -> Int32:
+def _try_open_file(path: String) -> Int32:
     """Try to open a file. Returns fd >= 0 on success, -1 on failure."""
     var pbuf = _str_to_cpath(path)
     var fd = _fd_open(pbuf.unsafe_ptr())
     return fd
 
 
-fn _get_byte(s: String, idx: Int) -> UInt8:
+def _get_byte(s: String, idx: Int) -> UInt8:
     """Get byte at index from String."""
     return s.as_bytes()[idx]
 
@@ -107,61 +121,63 @@ fn _get_byte(s: String, idx: Int) -> UInt8:
 # ===----------------------------------------------------------------------=== #
 
 
-fn _json_find_string(json: String, key: String) -> String:
+def _json_find_string(json: String, key: String) -> String:
     """Extract a JSON string value for the given key. Returns empty on miss."""
     var needle = '"' + key + '"'
+    var n = json.byte_length()
     var pos = json.find(needle)
     if pos < 0:
         return String("")
-    pos += len(needle)
+    pos += needle.byte_length()
     # Skip colon and whitespace.
-    while pos < len(json):
+    while pos < n:
         var b = _get_byte(json, pos)
-        if b != ord(" ") and b != ord(":") and b != ord("\n") and b != ord("\t"):
+        if b != _BYTE_SPACE and b != _BYTE_COLON and b != _BYTE_NEWLINE and b != _BYTE_TAB:
             break
         pos += 1
-    if pos >= len(json) or _get_byte(json, pos) != ord('"'):
+    if pos >= n or _get_byte(json, pos) != _BYTE_QUOTE:
         return String("")
     pos += 1  # skip opening quote
     var end = pos
-    while end < len(json) and _get_byte(json, end) != ord('"'):
+    while end < n and _get_byte(json, end) != _BYTE_QUOTE:
         end += 1
-    return String(json[pos:end])
+    return String(json[byte=pos:end])
 
 
-fn _json_find_int_array(json: String, key: String) -> List[Int]:
+def _json_find_int_array(json: String, key: String) -> List[Int]:
     """Extract a JSON integer array [n, m, ...]. Returns empty list on miss."""
     var result = List[Int]()
     var needle = '"' + key + '"'
+    var n = json.byte_length()
     var pos = json.find(needle)
     if pos < 0:
         return result^
-    pos += len(needle)
+    pos += needle.byte_length()
     # Find opening bracket.
-    while pos < len(json) and _get_byte(json, pos) != ord("["):
+    while pos < n and _get_byte(json, pos) != _BYTE_OPEN_BRACKET:
         pos += 1
-    if pos >= len(json):
+    if pos >= n:
         return result^
     pos += 1
-    while pos < len(json) and _get_byte(json, pos) != ord("]"):
+    while pos < n and _get_byte(json, pos) != _BYTE_CLOSE_BRACKET:
         # Skip whitespace and commas.
         var b = _get_byte(json, pos)
-        if b == ord(" ") or b == ord(",") or b == ord("\n") or b == ord("\t"):
+        if b == _BYTE_SPACE or b == _BYTE_COMMA or b == _BYTE_NEWLINE or b == _BYTE_TAB:
             pos += 1
             continue
-        if b == ord("]"):
+        if b == _BYTE_CLOSE_BRACKET:
             break
         # Parse integer.
         var start = pos
-        while pos < len(json):
+        while pos < n:
             var c = _get_byte(json, pos)
-            if c < ord("0") or c > ord("9"):
+            if c < _BYTE_DIGIT_0 or c > _BYTE_DIGIT_9:
                 break
             pos += 1
         if pos > start:
             var val = 0
             for i in range(start, pos):
-                val = val * 10 + (Int(_get_byte(json, i)) - Int(ord("0")))
+                val = val * 10 + (Int(_get_byte(json, i)) - Int(_BYTE_DIGIT_0))
             result.append(val)
     return result^
 
@@ -179,14 +195,14 @@ struct TensorInfo(Copyable, Movable, ImplicitlyCopyable):
     var data_offset: Int     # Byte offset from start of data region.
     var data_size: Int       # Byte count in data region.
 
-    fn __init__(out self):
+    def __init__(out self):
         self.name = String("")
         self.dtype = String("")
         self.shape = List[Int]()
         self.data_offset = 0
         self.data_size = 0
 
-    fn __init__(out self, name: String, dtype: String, shape: List[Int],
+    def __init__(out self, name: String, dtype: String, shape: List[Int],
                 data_offset: Int, data_size: Int):
         self.name = name
         self.dtype = dtype
@@ -194,21 +210,21 @@ struct TensorInfo(Copyable, Movable, ImplicitlyCopyable):
         self.data_offset = data_offset
         self.data_size = data_size
 
-    fn __copyinit__(out self, copy: Self):
+    def __init__(out self, *, copy: Self):
         self.name = copy.name
         self.dtype = copy.dtype
         self.shape = copy.shape.copy()
         self.data_offset = copy.data_offset
         self.data_size = copy.data_size
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.name = take.name^
         self.dtype = take.dtype^
         self.shape = take.shape^
         self.data_offset = take.data_offset
         self.data_size = take.data_size
 
-    fn num_elements(self) -> Int:
+    def num_elements(self) -> Int:
         if len(self.shape) == 0:
             return 1
         var n = 1
@@ -225,87 +241,87 @@ struct SafetensorsFile(Copyable, Movable):
     var data_start: Int
     var tensors: List[TensorInfo]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.fd = -1
         self.file_size = 0
         self.header_size = 0
         self.data_start = 0
         self.tensors = List[TensorInfo]()
 
-    fn __copyinit__(out self, copy: Self):
+    def __init__(out self, *, copy: Self):
         self.fd = copy.fd
         self.file_size = copy.file_size
         self.header_size = copy.header_size
         self.data_start = copy.data_start
         self.tensors = copy.tensors.copy()
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.fd = take.fd
         self.file_size = take.file_size
         self.header_size = take.header_size
         self.data_start = take.data_start
         self.tensors = take.tensors^
 
-    fn close(var self):
+    def close(var self):
         if self.fd >= 0:
             _fd_close(self.fd)
 
-    fn find_tensor(self, name: String) -> Int:
+    def find_tensor(self, name: String) -> Int:
         """Return index into self.tensors or -1."""
         for i in range(len(self.tensors)):
             if self.tensors[i].name == name:
                 return i
         return -1
 
-    fn has_tensor(self, name: String) -> Bool:
+    def has_tensor(self, name: String) -> Bool:
         return self.find_tensor(name) >= 0
 
-    fn read_tensor_bytes(self, tensor_idx: Int) -> List[UInt8]:
+    def read_tensor_bytes(self, tensor_idx: Int) -> List[UInt8]:
         """Read raw bytes for tensor at index. Returns List[UInt8]."""
         var info = self.tensors[tensor_idx]
         var abs_offset = self.data_start + info.data_offset
         return _fd_read_into_list(self.fd, abs_offset, info.data_size)
 
-    fn read_tensor_into(self, tensor_idx: Int, dst: UnsafePointer[UInt8]) -> Int:
+    def read_tensor_into[o_dst: MutOrigin](self, tensor_idx: Int, dst: UnsafePointer[UInt8, o_dst]) -> Int:
         """Read raw bytes for tensor at index into pre-allocated dst."""
         var info = self.tensors[tensor_idx]
         var abs_offset = self.data_start + info.data_offset
         return _fd_pread(self.fd, abs_offset, dst, info.data_size)
 
 
-fn _parse_safetensors_header(header_json: String) -> List[TensorInfo]:
+def _parse_safetensors_header(header_json: String) -> List[TensorInfo]:
     """Parse the safetensors JSON header into TensorInfo list.
 
     The JSON is a flat dict: tensor_name -> {dtype, shape, data_offsets}.
     """
     var result = List[TensorInfo]()
     var pos = 0
-    var n = len(header_json)
+    var n = header_json.byte_length()
 
     # Skip leading {
-    while pos < n and _get_byte(header_json, pos) != ord("{"):
+    while pos < n and _get_byte(header_json, pos) != _BYTE_OPEN_BRACE:
         pos += 1
     pos += 1
 
     while pos < n:
         # Find next quoted tensor name.
-        while pos < n and _get_byte(header_json, pos) != ord('"'):
-            if _get_byte(header_json, pos) == ord("}"):
+        while pos < n and _get_byte(header_json, pos) != _BYTE_QUOTE:
+            if _get_byte(header_json, pos) == _BYTE_CLOSE_BRACE:
                 return result^
             pos += 1
         if pos >= n:
             break
         pos += 1  # skip opening quote
         var name_start = pos
-        while pos < n and _get_byte(header_json, pos) != ord('"'):
+        while pos < n and _get_byte(header_json, pos) != _BYTE_QUOTE:
             pos += 1
-        var tensor_name = String(header_json[name_start:pos])
+        var tensor_name = String(header_json[byte=name_start:pos])
         pos += 1  # skip closing quote
 
         # Skip to value object { }.
-        while pos < n and _get_byte(header_json, pos) != ord("{") and _get_byte(header_json, pos) != ord("}"):
+        while pos < n and _get_byte(header_json, pos) != _BYTE_OPEN_BRACE and _get_byte(header_json, pos) != _BYTE_CLOSE_BRACE:
             pos += 1
-        if pos >= n or _get_byte(header_json, pos) == ord("}"):
+        if pos >= n or _get_byte(header_json, pos) == _BYTE_CLOSE_BRACE:
             break
 
         # Extract the sub-object as a string.
@@ -313,15 +329,15 @@ fn _parse_safetensors_header(header_json: String) -> List[TensorInfo]:
         var depth = 0
         while pos < n:
             var b = _get_byte(header_json, pos)
-            if b == ord("{"):
+            if b == _BYTE_OPEN_BRACE:
                 depth += 1
-            elif b == ord("}"):
+            elif b == _BYTE_CLOSE_BRACE:
                 depth -= 1
                 if depth == 0:
                     pos += 1
                     break
             pos += 1
-        var obj_str = String(header_json[obj_start:pos])
+        var obj_str = String(header_json[byte=obj_start:pos])
 
         # Skip __metadata__ key.
         if tensor_name == "__metadata__":
@@ -347,7 +363,7 @@ fn _parse_safetensors_header(header_json: String) -> List[TensorInfo]:
     return result^
 
 
-fn open_safetensors(path: String) raises -> SafetensorsFile:
+def open_safetensors(path: String) raises -> SafetensorsFile:
     """Open a safetensors file and parse its header.
 
     Format: 8-byte LE header_size | JSON header | raw tensor data.
@@ -415,21 +431,21 @@ struct GGUFTensorInfo(Copyable, Movable, ImplicitlyCopyable):
     var tensor_type: UInt32
     var offset: Int
 
-    fn __init__(out self):
+    def __init__(out self):
         self.name = String("")
         self.n_dims = 0
         self.shape = List[Int]()
         self.tensor_type = 0
         self.offset = 0
 
-    fn __copyinit__(out self, copy: Self):
+    def __init__(out self, *, copy: Self):
         self.name = copy.name
         self.n_dims = copy.n_dims
         self.shape = copy.shape.copy()
         self.tensor_type = copy.tensor_type
         self.offset = copy.offset
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.name = take.name^
         self.n_dims = take.n_dims
         self.shape = take.shape^
@@ -437,7 +453,7 @@ struct GGUFTensorInfo(Copyable, Movable, ImplicitlyCopyable):
         self.offset = take.offset
 
 
-struct GGUFFile:
+struct GGUFFile(Movable):
     """Opened GGUF file with parsed header."""
     var fd: Int32
     var file_size: Int
@@ -448,7 +464,7 @@ struct GGUFFile:
     var tensors: List[GGUFTensorInfo]
     var alignment: Int
 
-    fn __init__(out self):
+    def __init__(out self):
         self.fd = -1
         self.file_size = 0
         self.version = 0
@@ -458,7 +474,7 @@ struct GGUFFile:
         self.tensors = List[GGUFTensorInfo]()
         self.alignment = 32
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.fd = take.fd
         self.file_size = take.file_size
         self.version = take.version
@@ -468,33 +484,33 @@ struct GGUFFile:
         self.tensors = take.tensors^
         self.alignment = take.alignment
 
-    fn close(var self):
+    def close(var self):
         if self.fd >= 0:
             _fd_close(self.fd)
 
-    fn find_tensor(self, name: String) -> Int:
+    def find_tensor(self, name: String) -> Int:
         for i in range(len(self.tensors)):
             if self.tensors[i].name == name:
                 return i
         return -1
 
 
-fn _read_u32_at(fd: Int32, offset: Int) -> UInt32:
+def _read_u32_at(fd: Int32, offset: Int) -> UInt32:
     """Read a little-endian uint32 at file offset."""
     var buf = _fd_read_into_list(fd, offset, 4)
     return UInt32(buf[0]) | (UInt32(buf[1]) << 8) | (UInt32(buf[2]) << 16) | (UInt32(buf[3]) << 24)
 
 
-fn _read_u64_at(fd: Int32, offset: Int) -> UInt64:
+def _read_u64_at(fd: Int32, offset: Int) -> UInt64:
     """Read a little-endian uint64 at file offset."""
     var buf = _fd_read_into_list(fd, offset, 8)
     var val = UInt64(0)
     for i in range(8):
-        val |= UInt64(buf[i]) << (i * 8)
+        val |= UInt64(buf[i]) << UInt64(i * 8)
     return val
 
 
-fn _read_gguf_string(fd: Int32, offset: Int) -> Tuple[String, Int]:
+def _read_gguf_string(fd: Int32, offset: Int) -> Tuple[String, Int]:
     """Read a GGUF string (u64 len + bytes). Returns (string, bytes_consumed)."""
     var slen = Int(_read_u64_at(fd, offset))
     var buf = _fd_read_into_list(fd, offset + 8, slen)
@@ -504,7 +520,7 @@ fn _read_gguf_string(fd: Int32, offset: Int) -> Tuple[String, Int]:
     return (s^, 8 + slen)
 
 
-fn _skip_gguf_value(fd: Int32, offset: Int, vtype: UInt32) -> Int:
+def _skip_gguf_value(fd: Int32, offset: Int, vtype: UInt32) -> Int:
     """Skip a GGUF metadata value, returning bytes consumed."""
     if vtype == GGUF_TYPE_UINT32 or vtype == GGUF_TYPE_INT32 or vtype == GGUF_TYPE_FLOAT32:
         return 4
@@ -523,7 +539,7 @@ fn _skip_gguf_value(fd: Int32, offset: Int, vtype: UInt32) -> Int:
     return 0
 
 
-fn open_gguf(path: String) raises -> GGUFFile:
+def open_gguf(path: String) raises -> GGUFFile:
     """Open a GGUF file and parse tensor metadata.
 
     GGUF v3 layout:
@@ -607,7 +623,7 @@ struct LoadedWeight(Copyable, Movable):
     var out_features: Int
     var in_features: Int
 
-    fn __init__(out self):
+    def __init__(out self):
         self.packed_weights = List[UInt8]()
         self.blockscales = List[UInt8]()
         self.weight_scale_2 = 1.0
@@ -615,7 +631,7 @@ struct LoadedWeight(Copyable, Movable):
         self.out_features = 0
         self.in_features = 0
 
-    fn __init__(out self, out_features: Int, in_features: Int):
+    def __init__(out self, out_features: Int, in_features: Int):
         var packed_size = out_features * (in_features // NVFP4_PACK_FACTOR)
         var scale_size = out_features * (in_features // NVFP4_GROUP_SIZE)
         self.packed_weights = List[UInt8](capacity=packed_size)
@@ -629,7 +645,7 @@ struct LoadedWeight(Copyable, Movable):
         self.out_features = out_features
         self.in_features = in_features
 
-    fn __copyinit__(out self, copy: Self):
+    def __init__(out self, *, copy: Self):
         self.packed_weights = copy.packed_weights.copy()
         self.blockscales = copy.blockscales.copy()
         self.weight_scale_2 = copy.weight_scale_2
@@ -637,7 +653,7 @@ struct LoadedWeight(Copyable, Movable):
         self.out_features = copy.out_features
         self.in_features = copy.in_features
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.packed_weights = take.packed_weights^
         self.blockscales = take.blockscales^
         self.weight_scale_2 = take.weight_scale_2
@@ -645,21 +661,21 @@ struct LoadedWeight(Copyable, Movable):
         self.out_features = take.out_features
         self.in_features = take.in_features
 
-    fn to_linear(self) -> NvFp4Linear:
+    def to_linear(self) -> NvFp4Linear:
         """Create NvFp4Linear metadata (pass .unsafe_ptr() separately)."""
         var lin = NvFp4Linear(self.in_features, self.out_features)
         lin.input_scale = self.input_scale
         lin.weight_scale_2 = self.weight_scale_2
         return lin^
 
-    fn packed_weight_bytes(self) -> Int:
+    def packed_weight_bytes(self) -> Int:
         return self.out_features * (self.in_features // NVFP4_PACK_FACTOR)
 
-    fn blockscale_bytes(self) -> Int:
+    def blockscale_bytes(self) -> Int:
         return self.out_features * (self.in_features // NVFP4_GROUP_SIZE)
 
 
-fn _read_f32_from_bytes(buf: List[UInt8]) -> Float32:
+def _read_f32_from_bytes(buf: List[UInt8]) -> Float32:
     """Interpret first 4 bytes of buf as little-endian IEEE754 float32."""
     if len(buf) < 4:
         return 1.0
@@ -684,7 +700,7 @@ fn _read_f32_from_bytes(buf: List[UInt8]) -> Float32:
     return -result if sign == 1 else result
 
 
-fn load_linear_safetensors(
+def load_linear_safetensors(
     sf: SafetensorsFile,
     prefix: String,
 ) raises -> LoadedWeight:
@@ -778,7 +794,7 @@ struct Qwen35LayerWeights(Movable):
     var input_layernorm: List[UInt8]
     var post_attn_layernorm: List[UInt8]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.q_proj = LoadedWeight()
         self.k_proj = LoadedWeight()
         self.v_proj = LoadedWeight()
@@ -793,7 +809,7 @@ struct Qwen35LayerWeights(Movable):
         self.input_layernorm = List[UInt8]()
         self.post_attn_layernorm = List[UInt8]()
 
-    fn __moveinit__(out self, deinit take: Self):
+    def __init__(out self, *, deinit take: Self):
         self.q_proj = take.q_proj^
         self.k_proj = take.k_proj^
         self.v_proj = take.v_proj^
@@ -809,7 +825,7 @@ struct Qwen35LayerWeights(Movable):
         self.post_attn_layernorm = take.post_attn_layernorm^
 
 
-fn _find_load_linear(
+def _find_load_linear(
     shards: List[SafetensorsFile], prefix: String
 ) raises -> LoadedWeight:
     """Find which shard has a tensor and load the NVFP4 linear from it."""
@@ -820,7 +836,7 @@ fn _find_load_linear(
     raise Error("No shard contains " + w_name)
 
 
-fn _find_load_raw(
+def _find_load_raw(
     shards: List[SafetensorsFile], name: String
 ) raises -> List[UInt8]:
     """Find which shard has a tensor and load its raw bytes."""
@@ -831,7 +847,7 @@ fn _find_load_raw(
     raise Error("No shard contains " + name)
 
 
-fn load_qwen35_layer(
+def load_qwen35_layer(
     shards: List[SafetensorsFile],
     layer_idx: Int,
     num_experts: Int,
@@ -882,15 +898,15 @@ fn load_qwen35_layer(
 # ===----------------------------------------------------------------------=== #
 
 
-fn _zero_pad5(n: Int) -> String:
+def _zero_pad5(n: Int) -> String:
     """Zero-pad an integer to 5 digits (00001-99999)."""
     var s = String(n)
-    while len(s) < 5:
+    while s.byte_length() < 5:
         s = "0" + s
     return s^
 
 
-fn discover_safetensor_shards(model_dir: String) raises -> List[String]:
+def discover_safetensor_shards(model_dir: String) raises -> List[String]:
     """Find safetensor shard files in a model directory.
 
     Looks for model.safetensors (single) or model-NNNNN-of-NNNNN.safetensors.
@@ -929,57 +945,10 @@ fn discover_safetensor_shards(model_dir: String) raises -> List[String]:
     return paths^
 
 
-fn open_model_shards(model_dir: String) raises -> List[SafetensorsFile]:
+def open_model_shards(model_dir: String) raises -> List[SafetensorsFile]:
     """Discover and open all safetensor shards for a model directory."""
     var paths = discover_safetensor_shards(model_dir)
     var files = List[SafetensorsFile]()
     for i in range(len(paths)):
         files.append(open_safetensors(paths[i]))
     return files^
-
-
-# ===----------------------------------------------------------------------=== #
-# Standalone verification — run as: mojo build weight_loader.mojo && ./weight_loader <file>
-# ===----------------------------------------------------------------------=== #
-
-
-fn main() raises:
-    """Parse a safetensors or GGUF file and print tensor metadata."""
-    from sys import argv
-
-    if len(argv()) < 2:
-        print("Usage: weight_loader <path.safetensors|path.gguf>")
-        return
-
-    var path = argv()[1]
-    print("File:", path)
-
-    if path.endswith(".gguf"):
-        var gguf = open_gguf(path)
-        print("  Version:", gguf.version, " Tensors:", gguf.n_tensors,
-              " KV:", gguf.n_kv, " Alignment:", gguf.alignment)
-        var limit = 20
-        if gguf.n_tensors < limit:
-            limit = gguf.n_tensors
-        for i in range(limit):
-            print("   ", gguf.tensors[i].name, "type=", gguf.tensors[i].tensor_type)
-        gguf^.close()
-    elif path.endswith(".safetensors"):
-        var sf = open_safetensors(path)
-        print("  Header:", sf.header_size, "bytes  Tensors:", len(sf.tensors))
-        for i in range(len(sf.tensors)):
-            print("   ", sf.tensors[i].name, "dtype=", sf.tensors[i].dtype,
-                  "size=", sf.tensors[i].data_size)
-        # Load first NVFP4 linear found.
-        for i in range(len(sf.tensors)):
-            if sf.tensors[i].name.endswith(".weight") and sf.tensors[i].dtype == "U8":
-                var prefix = String(sf.tensors[i].name[:len(sf.tensors[i].name) - 7])
-                if sf.has_tensor(prefix + ".weight_scale"):
-                    var w = load_linear_safetensors(sf, prefix)
-                    print("  Loaded:", prefix, "out=", w.out_features,
-                          "in=", w.in_features, "ws2=", w.weight_scale_2,
-                          "is=", w.input_scale)
-                    break
-        sf^.close()
-
-    print("Done.")

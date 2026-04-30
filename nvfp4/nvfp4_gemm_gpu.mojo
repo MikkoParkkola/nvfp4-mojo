@@ -9,16 +9,16 @@
 # Uses tensor cores with blockscale dequantization fused into the kernel.
 # ===----------------------------------------------------------------------=== #
 
-from math import ceildiv
+from std.math import ceildiv
 
-from gpu import (
+from std.gpu import (
     WARP_SIZE,
     barrier,
     block_idx,
     thread_idx,
 )
-from gpu.host import DeviceContext, DeviceBuffer
-from memory import UnsafePointer
+from std.gpu.host import DeviceContext, DeviceBuffer
+from std.memory import UnsafePointer
 
 from .config import (
     NVFP4_GROUP_SIZE,
@@ -42,14 +42,17 @@ comptime FP8_SCALE_DTYPE: DType = DType.float8_e4m3fn
 
 
 @always_inline
-fn load_and_dequant_fp4_tile[
+def load_and_dequant_fp4_tile[
     tile_m: Int,
     tile_k: Int,
+    o_weights: Origin,
+    o_scales: Origin,
+    o_output: MutOrigin,
     group_size: Int = NVFP4_GROUP_SIZE,
 ](
-    packed_weights: UnsafePointer[UInt8],
-    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE]],
-    output: UnsafePointer[Float32],
+    packed_weights: UnsafePointer[UInt8, o_weights],
+    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE], o_scales],
+    output: UnsafePointer[Float32, o_output],
     weight_stride: Int,
     scale_stride: Int,
     start_row: Int,
@@ -93,19 +96,23 @@ fn load_and_dequant_fp4_tile[
             output[out_idx_1] = dequant_fp4(lo_hi[1], scale)
 
 
-fn nvfp4_gemm_kernel[
+def nvfp4_gemm_kernel[
     M: Int,  # Output rows (out_features).
     N: Int,  # Output cols (batch * seq_len).
     K: Int,  # Reduction dim (in_features).
+    o_weights: Origin,
+    o_scales: Origin,
+    o_activations: Origin,
+    o_output: MutOrigin,
     act_dtype: DType = DType.bfloat16,
     out_dtype: DType = DType.bfloat16,
 ](
     # Inputs.
-    packed_weights: UnsafePointer[UInt8],     # [M, K//2] uint8.
-    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE]],       # [M, K//16] float8.
-    activations: UnsafePointer[Scalar[act_dtype]],  # [K, N] bfloat16.
+    packed_weights: UnsafePointer[UInt8, o_weights],     # [M, K//2] uint8.
+    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE], o_scales],       # [M, K//16] float8.
+    activations: UnsafePointer[Scalar[act_dtype], o_activations],  # [K, N] bfloat16.
     # Outputs.
-    output: UnsafePointer[Scalar[out_dtype]],  # [M, N].
+    output: UnsafePointer[Scalar[out_dtype], o_output],  # [M, N].
     # Scalars.
     alpha: Float32,  # input_scale * weight_scale_2.
 ):
@@ -175,12 +182,17 @@ fn nvfp4_gemm_kernel[
             output[global_m * N + global_n] = out_val
 
 
-fn nvfp4_linear_forward(
+def nvfp4_linear_forward[
+    o_weights: Origin,
+    o_scales: Origin,
+    o_activations: Origin,
+    o_output: MutOrigin,
+](
     linear: NvFp4Linear,
-    packed_weights: UnsafePointer[UInt8],
-    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE]],
-    activations_ptr: UnsafePointer[Scalar[DType.bfloat16]],
-    output_ptr: UnsafePointer[Scalar[DType.bfloat16]],
+    packed_weights: UnsafePointer[UInt8, o_weights],
+    blockscales: UnsafePointer[Scalar[FP8_SCALE_DTYPE], o_scales],
+    activations_ptr: UnsafePointer[Scalar[DType.bfloat16], o_activations],
+    output_ptr: UnsafePointer[Scalar[DType.bfloat16], o_output],
     batch_seq_len: Int,
     ctx: DeviceContext,
 ) raises:
@@ -196,7 +208,6 @@ fn nvfp4_linear_forward(
         ctx: GPU device context.
     """
     var M = linear.out_features
-    var K = linear.in_features
     var N = batch_seq_len
 
     var alpha = linear.alpha()

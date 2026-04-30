@@ -13,7 +13,7 @@ from nvfp4 import (
 from tests.helpers import expect_close
 
 
-fn test_fp4_lut() raises:
+def test_fp4_lut() raises:
     """Test FP4 E2M1 lookup table values."""
     expect_close(FP4_E2M1_LUT[0], 0.0, "FP4_E2M1_LUT[0]")
     expect_close(FP4_E2M1_LUT[1], 0.5, "FP4_E2M1_LUT[1]")
@@ -34,7 +34,7 @@ fn test_fp4_lut() raises:
     print("  PASS fp4_lut")
 
 
-fn test_pack_unpack() raises:
+def test_pack_unpack() raises:
     """Test packing and unpacking FP4 pairs."""
     var packed = pack_fp4_pair(UInt8(3), UInt8(5))
     assert_equal(
@@ -47,7 +47,7 @@ fn test_pack_unpack() raises:
     print("  PASS pack_unpack")
 
 
-fn test_dequant() raises:
+def test_dequant() raises:
     """Test dequantization with known values."""
     var scale: Float32 = 1.0
     expect_close(dequant_fp4(UInt8(0), scale), 0.0, "dequant_fp4(0, 1.0)")
@@ -62,7 +62,7 @@ fn test_dequant() raises:
     print("  PASS dequant")
 
 
-fn test_config() raises:
+def test_config() raises:
     """Test NvFp4Config initialization."""
     var config = NvFp4Config()
     assert_equal(NVFP4_PACK_FACTOR, 2, "NVFP4 pack factor should stay at 2")
@@ -87,7 +87,7 @@ fn test_config() raises:
     print("  PASS config")
 
 
-fn run_suite() raises:
+def run_suite() raises:
     print("=" * 50)
     print("NVFP4 Mojo Kernel Test Suite")
     print("=" * 50)
@@ -102,5 +102,5 @@ fn run_suite() raises:
     print("=" * 50)
 
 
-fn main() raises:
+def main() raises:
     run_suite()

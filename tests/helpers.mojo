@@ -1,7 +1,7 @@
 from std.testing import assert_true
 
 
-fn approx_eq(a: Float32, b: Float32, tol: Float32 = 1e-4) -> Bool:
+def approx_eq(a: Float32, b: Float32, tol: Float32 = 1e-4) -> Bool:
     """Check approximate equality."""
     var diff = a - b
     if diff < 0.0:
@@ -16,7 +16,7 @@ fn approx_eq(a: Float32, b: Float32, tol: Float32 = 1e-4) -> Bool:
     return False
 
 
-fn expect_close(
+def expect_close(
     actual: Float32,
     expected: Float32,
     label: String,
